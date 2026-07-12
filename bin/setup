@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+
+# OpenCode Setup Script
+# This script bootstraps OpenCode tool for a repository.
+# 
+# curl -fSL "" | bash
+#
+# Installs:
+#  • /commit-message - Staged diff analyzer enforcing 72-char Conventional Commits
+#    Adds .opencode/commands/commit-message.md
+#  • OpenSpec - Spec framework compiling requirements into context manifests
+#    https://openspec.dev/
+#  • CodeGraph - Local SQLite knowledge graph indexing symbols and call paths
+#    https://github.com/colbymchenry/codegraph
+#  • rtk - Rust CLI proxy filtering and compressing shell tokens by 60-90%
+#    https://github.com/rtk-ai/rtk
+#  • Caveman - Strip filler words to cut output tokens
+#    Edits ~/.config/opencode/AGENTS.md
+#
+# Requirements:
+#  • Git, curl, and a bash-compatible shell
+
+# ---
+
+# This line is often referred to as the "Bash Unofficial Strict Mode"
+#
+# -e (errexit): Tells the script to exit immediately if a command exits with a non-zero status
+#               (indicates an error). Without this, Bash keeps running the next line even if the
+#               previous command failed.
+# -i (nounset): Causes the script to exit if you try to use a variable that hasn't been defined.
+#               This prevents disasters like "rm -rf /$DIR" if $DIR happens to be empty.
+# -o pipeline: Ensures that if any command in a pipeline fails (e.g., step1 | step2 | step3), the whole
+#              pipeline returns a failure code. Normally, Bash only cares if the last command in the pipe worked.
+set -euo pipefail
+
+# Requires Bash 4.2+ for associative arrays and global declarations.
+if (( BASH_VERSINFO[0] < 4 )) || { (( BASH_VERSINFO[0] == 4 )) && (( BASH_VERSINFO[1] < 2 )); }
+then
+    echo "Error: Requires Bash 4.2 or higher." >&2
+    echo "Current version: $BASH_VERSION" >&2
+    exit 1
+fi
+
+
+# Resolve project root (one level up from /bin)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+
+# Source the provided file
+# Source local file if it exists, otherwise fetch from GitHub
+function _source_file
+{
+    local file_path="$1"
+    local source_path
+
+    if [[ -f "$ROOT_DIR/$file_path" ]]
+    then
+        # Source local
+        source_path="$ROOT_DIR/$file_path"
+        source "$source_path"
+        return 0
+    else
+        # Source remote from GitHub
+        source_path="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$file_path"
+        
+        local _tmp_file
+        _tmp_file=$(mktemp)
+        if curl -fsSL "$source_path" -o "$_tmp_file"
+        then
+            source "$_tmp_file"
+            rm -f "$_tmp_file"
+            return 0
+        fi
+    fi
+
+    echo "Failed to source: $source_path" >&2
+    rm -f "$_tmp_file"
+    exit 1
+}
+
+
+# Load helpers
+_source_file "src/utils/_logger.sh"
+_source_file "src/utils/_utils.sh"
+
+# Ensure environment
+log::section "System Checks"
+
+log::info "Ensuring directory is a Git repository..."
+CWD=$(pwd -P)
+if ! util::is_git_project "$CWD"
+then
+    log::error "Not a Git repository: $CWD"
+    log::error "Please run this script in the root of a Git project."
+    exit 1
+fi
+log::success "Git repository verified!"
+
+log::info "Ensuring OpenSpec is installed..."
+if ! util::command_exists "openspec"
+then
+    log::error "OpenSpec is not installed. Please install OpenSpec and try again."
+    log::error "  https://openspec.dev/"
+    exit 1
+fi
+log::success "OpenSpec verified!"
+
+log::info "Ensuring CodeGraph is installed..."
+log::warn "Coming soon..."
+# if ! util::command_exists "codegraph"
+# then
+#     log::error "CodeGraph is not installed. Please install CodeGraph and try again."
+#     log::error "  https://github.com/colbymchenry/codegraph"
+#     exit 1
+# fi
+log::success "CodeGraph verified!"
+
+log::info "Ensuring rtk is installed..."
+if ! util::command_exists "rtk"
+then
+    log::error "rtk is not installed. Please install rtk and try again."
+    log::error "  https://github.com/rtk-ai/rtk"
+    exit 1
+fi
+log::success "rtk verified!"
+
+# Set git root directory
+log::info "Finding Git root directory..."
+GIT_DIR=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+GIT_DIR=$(cd "$GIT_DIR" && pwd -P)
+log::success "Git root directory: $GIT_DIR"
+
+# Setup tools
+log::section "Configuring OpenCode"
+
+log::info "Creating .opencode directory in Git root..."
+if [[ -d "$GIT_DIR/.opencode" ]]
+then
+    log::success ".opencode directory already exists!"
+else
+    mkdir -p "$GIT_DIR/.opencode"
+    log::success ".opencode directory created!"
+fi
+
+if [[ ! -f "$GIT_DIR/.gitignore" ]] || ! grep -qF ".opencode/" "$GIT_DIR/.gitignore"
+then
+    echo "" >> "$GIT_DIR/.gitignore"
+    echo "# Ignore OpenCode" >> "$GIT_DIR/.gitignore"
+    echo ".opencode/" >> "$GIT_DIR/.gitignore"
+fi
+
+# Write commit-message command
+log::info "Writing commit-message command..."
+if [[ -f "$GIT_DIR/.opencode/commands/commit-message.md" ]]
+then
+    log::warn "Skipping /commit-message command. File already exists: $GIT_DIR/.opencode/commands/commit-message.md"
+    log::warn "Manually delete file and run again to get latest commit-message.md"
+else
+    util::write_script_to_file "src/markdown/commit-message.md" "$GIT_DIR/.opencode/commands/commit-message.md" --overwrite
+    log::success "commit-message command written to .opencode/commands/commit-message.md"
+fi
+
+# Initialize OpenSpec
+log::info "Initializing OpenSpec..."
+if [[ -d "$GIT_DIR/openspec" ]]
+then
+    if [[ -d "$GIT_DIR/openspec/changes" ]] && [[ -d "$GIT_DIR/openspec/specs" ]] && [[ -f "$GIT_DIR/openspec/config.yaml" ]]
+    then
+        log::success "OpenSpec already initialized! Nothing to do."
+    else
+        log::warn "Detected OpenSpec directory, but malformed directory structure."
+        log::warn "Manually delete OpenSpec directory and run again to initialize OpenSpec."
+    fi
+else
+    openspec init --tools opencode
+    log::success "OpenSpec initialized!"
+fi
+
+# CodeGraph tracks its own outputs to safely skip previously completed steps
+log::info "Initializing CodeGraph..."
+log::warn "Coming soon..."
+# codegraph install --target opencode --location local --yes
+# codegraph init
+# if [[ ! -f "$GIT_DIR/.gitignore" ]] || ! grep -qF ".codegraph/" "$GIT_DIR/.gitignore"
+# then
+#     echo "" >> "$GIT_DIR/.gitignore"
+#     echo "# Ignore CodeGraph output" >> "$GIT_DIR/.gitignore"
+#     echo ".codegraph/" >> "$GIT_DIR/.gitignore"
+# fi
+log::success "CodeGraph initialized!"
+# TODO: Should we create an OpenCode plugin that blocks grep calls until CodeGraph is used..?
+# We did this for the Graphify + CRG setup I wrote, and rtk has one too.
+
+# rtk tracks its own outputs to safely skip previously completed steps
+# It has to be installed globally, so once it's set up once then it's good forever.
+# No harm in running it again though.
+log::info "Initializing rtk..."
+echo "n" | rtk init --global --opencode
+log::success "rtk initialized!"
+
+log::info "Initializing caveman speak..."
+caveman_content=$(util::get_script_content "src/markdown/caveman.md")
+
+agents_file="$HOME/.config/opencode/AGENTS.md"
+mkdir -p "$(dirname "$agents_file")"
+touch "$agents_file"
+if grep -qF "$caveman_content" "$agents_file"
+then
+    log::warn "Skipping Caveman direction. Content already exists: $agents_file"
+else
+    tmp_file=$(mktemp)
+    echo "$caveman_content" > "$tmp_file"
+    echo "" >> "$tmp_file"
+    cat "$agents_file" >> "$tmp_file"
+    mv "$tmp_file" "$agents_file"
+    log::success "Caveman speak initialized!"
+fi
+
+echo
+log::box "✓ OpenCode Setup Complete!" \
+  "" \
+  "What was installed in the repository:" \
+  "  • /commit-message - Staged diff analyzer enforcing 72-char Conventional Commits" \
+  "    Adds .opencode/commands/commit-message.md" \
+  "" \
+  "  • OpenSpec - Spec framework compiling requirements into context manifests" \
+  "    https://openspec.dev/" \
+  "" \
+  "  • CodeGraph - Local SQLite knowledge graph indexing symbols and call paths" \
+  "    https://github.com/colbymchenry/codegraph" \
+  "" \
+  "  • rtk - Rust CLI proxy filtering and compressing shell tokens by 60-90%" \
+  "    https://github.com/rtk-ai/rtk" \
+  "" \
+  "  • Caveman - Strip filler words to cut output tokens" \
+  "    Edits ~/.config/opencode/AGENTS.md"
