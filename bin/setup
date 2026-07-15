@@ -29,7 +29,7 @@
 #               previous command failed.
 # -i (nounset): Causes the script to exit if you try to use a variable that hasn't been defined.
 #               This prevents disasters like "rm -rf /$DIR" if $DIR happens to be empty.
-# -o pipeline: Ensures that if any command in a pipeline fails (e.g., step1 | step2 | step3), the whole
+# -o pipefail: Ensures that if any command in a pipeline fails (e.g., step1 | step2 | step3), the whole
 #              pipeline returns a failure code. Normally, Bash only cares if the last command in the pipe worked.
 set -euo pipefail
 

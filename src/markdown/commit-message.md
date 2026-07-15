@@ -2,88 +2,230 @@
 description: Generate Conventional Commit Message
 ---
 
-# Purpose
+# Task
 
-Generate a high-quality Conventional Commit message based on the currently
-staged Git changes.
+Generate a Conventional Commit message from the staged Git changes.
 
-The AI must **never perform the commit** or execute any mutating Git
-commands. Its responsibility is only to analyze the staged changes,
-generate the commit message, and provide the exact command for the user
-to copy and run.
+You must:
+1. Analyze only staged changes.
+2. Generate the commit message.
+3. Provide the exact `git commit` command for the user.
 
-# Workflow
+You must never:
+- execute `git commit`
+- execute `git push`
+- modify repository files
+- inspect unstaged changes as a substitute for staged changes
 
-1. **Verify Staged Changes:** Inspect the staged changes by running:
-   ```bash
-   git diff --cached
-   ```
-   If the output is empty, immediately halt. Inform the user that no changes are staged, and suggest staging files first (e.g., `git add .`). Do not attempt to analyze unstaged changes.
+---
 
-2. **Extract or Ask for Issue Number:** 
-   - Inspect the current branch name (using `git branch --show-current`) for a structured issue reference (e.g., matching patterns like `123-`, `issue-123`, `closes-123`, `#123`).
-   - If no issue number is found in the branch name, **halt and ask the user to provide the issue number** before drafting the commit message. An issue number is strictly mandatory. Never invent or guess an issue number.
+# Execution Workflow
 
-3. **Determine Commit Metadata:**
-   - Determine the appropriate Conventional Commit type.
-   - Determine the scope (lowercase kebab-case, e.g., `ci-pipeline`). Only include a scope if the changes clearly belong to a specific high-level component; omit it entirely for cross-cutting or global changes.
-   - Determine the primary purpose of the change (summary).
-   - Determine the motivation behind the change (body).
+Follow these steps in order.
 
-4. **Validate Commit Length:**
-   - The entire first line (including type, optional scope, colon, space, and summary) must never exceed 72 characters.
-   - If shell tools are available (e.g., `wc -c`), use them to verify the character length of the first line.
-   - If shell tools are **not** available, defensively target an internal limit of 50 to 60 characters for the first line to ensure it safely stays under the hard 72-character limit.
-   - If the line exceeds the limit, rewrite the summary and validate it again.
+## Step 1: Verify staged changes
 
-# Commit Format
+Run:
 
-Every commit must follow this structure:
+git diff --cached
 
-```text
+If no staged changes exist:
+
+STOP.
+
+Tell the user:
+- no staged changes were found
+- they should stage changes first (example: `git add .`)
+
+Do not continue.
+
+---
+
+## Step 2: Determine issue number
+
+Run:
+
+git branch --show-current
+
+Extract the issue number from the branch name.
+
+Recognize common formats:
+
+- `123-description`
+- `issue-123-description`
+- `feature/123-description`
+- `fix/123-description`
+- `#123`
+
+The issue number is mandatory.
+
+If an issue number cannot be found:
+
+STOP.
+
+Ask the user for the issue number.
+
+Never:
+- guess an issue number
+- invent an issue number
+- omit the issue footer
+
+---
+
+## Step 3: Analyze the change
+
+Determine:
+
+1. Commit type
+2. Scope
+3. Summary
+4. Body
+5. Footer
+
+### Commit Type
+
+Choose exactly one:
+
+- build
+- chore
+- ci
+- dep
+- docs
+- feat
+- fix
+- perf
+- refactor
+- revert
+- style
+- test
+
+Select the type that best represents the primary purpose of the change.
+
+---
+
+### Scope
+
+Include a scope only when the changes belong to one clear, high-level component.
+
+Rules:
+
+- lowercase
+- kebab-case
+- omit for global or cross-cutting changes
+
+Examples:
+
+- parser
+- installer
+- pipeline
+- docs
+- api-client
+
+---
+
+### Summary
+
+Requirements:
+
+- imperative mood
+- present tense
+- starts with lowercase letter
+- no trailing period
+- describes the primary change
+- maximum 72 characters
+
+---
+
+### Body
+
+The body is required.
+
+Explain:
+
+- what changed
+- why it changed
+- important implementation decisions
+- impact on users or developers
+
+Do not repeat the summary.
+
+Wrap lines at 72 characters.
+
+---
+
+### Footer
+
+The footer is required.
+
+The footer must contain:
+
+<GitLab keyword> #<issue>
+
+Choose the keyword based on commit type:
+
+- fix: Fixes
+- feat: Implements
+- all others: Closes
+
+Examples:
+
+Fixes #123
+
+Implements #456
+
+Closes #789
+
+---
+
+# Validation Gate
+
+Before responding, verify all requirements:
+
+- staged changes were inspected
+- issue number exists
+- commit type is valid
+- scope is valid or omitted intentionally
+- summary exists
+- first line is <=72 characters
+- body exists
+- footer exists
+- footer contains the issue number
+- footer uses the correct GitLab keyword
+
+If any validation fails:
+
+Fix it before responding.
+
+---
+
+# Output Format
+
+Return only:
+
+1. Commit message
+
+Inside a fenced code block:
+
 <type>(<scope>): <summary>
 
 <body>
 
 <footer>
-```
 
-## Type
-Must be one of:
-- build, chore, ci, dep, docs, feat, fix, perf, refactor, revert, style, test
+If no scope:
 
-## Scope
-Optional, lowercase kebab-case. Include only for distinct functional components. Omit for cross-cutting concerns.
+<type>: <summary>
 
-## Summary
-- Present tense, imperative mood.
-- Begins with a lowercase letter.
-- No trailing period.
-- Target 50 characters or fewer (max 72).
+<body>
 
-## Body
-- **Required.**
-- Explains what changed, why it changed, key technical decisions, and impact.
-- Avoids filler or simply repeating the summary, focusing strictly on adding analytical value.
-- Wrap body lines at 72 characters.
+<footer>
 
-## Footer
-- **Required.** Must use a GitLab closing keyword followed by the mandatory issue number.
-- Map the keyword dynamically based on the commit type:
-  - `fix` -> `Fixes #<issue>`
-  - `feat` -> `Implements #<issue>`
-  - All other types -> `Closes #<issue>` (or `Resolves #<issue>` if contextually appropriate)
+2. Git command
 
-# Output
+Provide the exact command:
 
-Return **only**:
+git commit -m "<subject>" -m "<body>" -m "<footer>"
 
-1. The completed commit message inside a fenced code block.
-2. The exact, copy-pasteable command to execute the commit using multiple `-m` flags to ensure Zsh compatibility, formatted like this:
-   ```bash
-   git commit -m "<type>(<scope>): <summary>" -m "<body>" -m "<footer>"
-   ```
+Use multiple -m flags for shell compatibility.
 
-Do **not** execute `git commit`.
-Do **not** execute `git push`.
-Do **not** modify the repository.
+Do not execute the command.

@@ -13,7 +13,7 @@ One-command setup to supercharge a repository with [OpenCode](https://opencode.a
 ## Usage
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/main/bin/setup | bash
+curl -fsSL https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/bin/setup | bash
 ```
 
 Run from the Git repository you want to bootstrap.
