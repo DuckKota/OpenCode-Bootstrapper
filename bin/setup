@@ -221,7 +221,15 @@ function _write_commit_message_command
 
 function _write_grillme_command
 {
-    echo "TODO"
+    log::info "Writing grill-me command..."
+    if [[ -f "$GIT_DIR/.opencode/commands/grill-me.md" ]]
+    then
+        log::warn "Skipping /grill-me command. File already exists: $GIT_DIR/.opencode/commands/grill-me.md"
+        log::warn "Manually delete file and run again to get latest grill-me.md"
+    else
+        util::write_script_to_file "src/markdown/grill-me.md" "$GIT_DIR/.opencode/commands/grill-me.md" --overwrite
+        log::success "grill-me command written to .opencode/commands/grill-me.md"
+    fi
 }
 
 function _write_handoff_command
