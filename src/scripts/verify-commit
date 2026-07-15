@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Logger functions
+function log::success { echo "[SUCCESS] $1"; }
+function log::error { echo "[ERROR] $1"; }
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+
+CONVENTIONAL_COMMIT_REGEX='^(build|chore|ci|dep|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: .+'
+VALID_COMMIT_CLOSING_PATTERN_LIST=(
+    Close Closes Closed Closing close closes closed closing
+    Fix Fixes Fixed Fixing fix fixes fixed fixing
+    Resolve Resolves Resolved Resolving resolve resolves resolved resolving
+    Implement Implements Implemented Implementing implement implements implemented implementing
+)
+
+function _commit::get_closing_regex
+{
+    local closing_string
+    closing_string=$(IFS='|'; echo "${VALID_COMMIT_CLOSING_PATTERN_LIST[*]}")
+    echo "($closing_string) #[0-9]+"
+}
+
+function commit::validate_message
+{
+    local message="$1"
+    message="${message%$'\n'}"
+
+    local subject
+    subject="${message%%$'\n'*}"
+
+    if [[ ! "$subject" =~ $CONVENTIONAL_COMMIT_REGEX ]]
+    then
+        log::error "Subject line does not match Conventional Commit format."
+        log::error "  Got: \"$subject\""
+        log::error "  Expected: type(scope): description (e.g., feat(api): add rate limiting)"
+        return 1
+    fi
+
+    if (( ${#subject} > 72 ))
+    then
+        log::error "Subject line exceeds 72 characters (${#subject} chars)."
+        log::error "  Got: \"$subject\""
+        return 1
+    fi
+
+    if [[ "$message" != *$'\n'* ]]
+    then
+        log::error "Body required. Commit message must have at least 3 lines."
+        return 1
+    fi
+
+    local rest="${message#*$'\n'}"
+    local line2="${rest%%$'\n'*}"
+
+    if [[ "$rest" == *$'\n'* ]]
+    then
+        local body_rest="${rest#*$'\n'}"
+    else
+        log::error "Body required. Commit message must have at least 3 lines."
+        log::error "  Line 2: \"$line2\""
+        return 1
+    fi
+
+    if [[ -n "$line2" ]]
+    then
+        log::error "Line 2 must be empty (separator between subject and body)."
+        log::error "  Got: \"$line2\""
+        return 1
+    fi
+
+    local line3
+    line3="${body_rest%%$'\n'*}"
+    if [[ ! "$line3" =~ [^[:space:]] ]]
+    then
+        log::error "Line 3 must be non-empty (body text)."
+        return 1
+    fi
+
+    local closing_regex
+    closing_regex=$(_commit::get_closing_regex)
+    if [[ ! "$message" =~ $closing_regex ]]
+    then
+        log::error "Footer must include GitLab closing reference (e.g., Closes #123)."
+        local last_line="${message##*$'\n'}"
+        log::error "  Last line: \"$last_line\""
+        return 1
+    fi
+
+    log::success "Commit message is valid."
+    return 0
+}
+
+function main
+{
+    if [[ -t 0 ]]
+    then
+        log::error "Usage: echo \"<commit message>\" | $0"
+        exit 1
+    fi
+
+    local message
+    message=$(cat)
+
+    if [[ -z "$message" ]]
+    then
+        log::error "No commit message provided (stdin is empty)."
+        exit 1
+    fi
+
+    commit::validate_message "$message"
+}
+
+main "$@"

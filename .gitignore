@@ -12,6 +12,7 @@ Icon*
 *.swo
 *~
 *.orig
+.opencode/
 
 # Temp files
 tmp/
