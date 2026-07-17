@@ -39,7 +39,7 @@ function util::get_script_content
     fi
 
     # If not found locally, try to fetch from GitHub
-    local github_url="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$relative_path"
+    local github_url="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$path"
     local content
     if content=$(curl -fsSL "$github_url")
     then
