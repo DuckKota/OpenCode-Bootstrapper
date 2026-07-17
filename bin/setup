@@ -69,6 +69,7 @@ function _ensure_openspec_installed
     if ! util::command_exists "openspec"
     then
         log::error "OpenSpec is not installed. Please install OpenSpec and try again."
+        log::error "Install: npm install -g @fission-ai/openspec@latest"
         exit 1
     fi
     log::success "OpenSpec verified!"
@@ -81,6 +82,7 @@ function _ensure_codebase_memory_mcp_installed
     if ! util::command_exists "codebase-memory-mcp"
     then
         log::error "codebase-memory-mcp is not installed. Please install codebase-memory-mcp and try again."
+        log::error "Install: curl -fsSL https://raw.githubusercontent.com/DeusData/codebase-memory-mcp/main/install.sh | bash -s -- --skip-config"
         exit 1
     fi
     log::success "codebase-memory-mcp verified!"
@@ -93,6 +95,7 @@ function _ensure_rtk_installed
     if ! util::command_exists "rtk"
     then
         log::error "rtk is not installed. Please install rtk and try again."
+        log::error "Install: curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh | sh"
         exit 1
     fi
     log::success "rtk verified!"
@@ -191,7 +194,7 @@ try:
             'codebase-memory-mcp': {
                 'enabled': True,
                 'type': 'local',
-                'command': '$codebase_mcp_install_path',
+                'command': ['$codebase_mcp_install_path'],
             }
         }
 
@@ -209,6 +212,9 @@ try:
 except Exception as e:
     print(f'Error updating file: {e}')
 ")
+
+    codebase-memory-mcp config set auto_index true  # auto-index on session start
+    codebase-memory-mcp config set auto_watch true  # register background git watcher
 
     log::success "codebase-memory-mcp initialized!"
     log::newline
