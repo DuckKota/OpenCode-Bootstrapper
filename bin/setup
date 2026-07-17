@@ -115,21 +115,9 @@ function _update_gitignore
 function _init_openspec
 {
     log::info "Initializing OpenSpec..."
-    if [[ -d "$GIT_DIR/openspec" ]]
-    then
-        if [[ -d "$GIT_DIR/openspec/changes" ]] && [[ -d "$GIT_DIR/openspec/specs" ]] && [[ -f "$GIT_DIR/openspec/config.yaml" ]]
-        then
-            log::success "OpenSpec already initialized!"
-            log::newline
-        else
-            log::warn "Detected OpenSpec directory, but malformed directory structure."
-            log::newline
-        fi
-    else
-        openspec init --tools opencode
-        log::success "OpenSpec initialized!"
-        log::newline
-    fi
+    openspec init --tools opencode
+    log::success "OpenSpec initialized!"
+    log::newline
 }
 
 function _init_codebase_memory_mcp
