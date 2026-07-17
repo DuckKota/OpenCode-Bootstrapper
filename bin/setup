@@ -166,6 +166,10 @@ function _init_codebase_memory_mcp
         cp "$ROOT_DIR/src/instructions/codebase-memory-mcp-agents.md" "$GIT_DIR/AGENTS.md"
     fi
 
+    # This is custom command that I wrote, so I don't care to check that it already exists.
+    mkdir -p "$GIT_DIR/.opencode/plugins"
+    cp "$ROOT_DIR/src/plugins/CodebaseMemoryReminder.ts" "$GIT_DIR/.opencode/plugins"
+
     # Update the projects MCP server list
     mkdir -p "$GIT_DIR/.opencode"
     local python_exe
