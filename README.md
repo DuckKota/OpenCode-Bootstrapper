@@ -22,7 +22,6 @@ curl -fsSL https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs
 ### Commands
 
 - **[`/commit-message`](./src/commands/commit-message.md)** - A command that analyzes the Git staged changes and writes a meaningful Conventional Commit.
-- **`/mermaid`** - _coming soon_
 - **[`/grill-me`](./src/commands/grill-me.md)** - A command that interviews you relentlessly about a plan, decision, or idea. Walks down each branch of the decision tree one question at a time until you reach a shared understanding.
 - **[`/handoff`](./src/commands/handoff.md)** - Compacts the current conversation into a handoff document so a fresh agent can pick up where you left off.
 
