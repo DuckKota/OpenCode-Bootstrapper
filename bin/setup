@@ -255,7 +255,7 @@ function _write_command
     if [[ -f "$GIT_DIR/.opencode/commands/$command_name.md" ]]
     then
         local command_current
-        command_current=$(util::get_script_content "$GIT_DIR/.opencode/commands/$command_name.md")
+        command_current=$(cat "$GIT_DIR/.opencode/commands/$command_name.md")
         local command_new
         command_new=$(util::get_script_content "src/commands/$command_name.md")
         if [[ "$command_current" == "$command_new" ]]
@@ -375,11 +375,11 @@ function _write_commit_message_command
         if [[ -f "$repo_command" ]] && [[ -f "$repo_script" ]]
         then
             local current_script new_script
-            current_script=$(util::get_script_content "$repo_script")
+            current_script=$(cat "$repo_script")
             new_script=$(util::get_script_content "$src_script")
 
             local current_command new_command
-            current_command=$(util::get_script_content "$repo_command")
+            current_command=$(cat "$repo_command")
             new_command=$(util::get_script_content "$src_command" | sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g")
 
             if [[ "$current_command" == "$new_command" ]] && [[ "$current_script" == "$new_script" ]]

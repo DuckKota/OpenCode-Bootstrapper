@@ -21,16 +21,9 @@ function util::command_exists
 # Fetch script content (local file preferred, fall back to GitHub)
 function util::get_script_content
 {
-    local path="$1"
-
-    if [[ -f "$path" ]]
-    then
-        cat "$path"
-        return 0
-    fi
-
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-    local local_path="$script_dir/../../$path"
+    local relative_path="$1"
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local local_path="$script_dir/../../$relative_path"
 
     if [[ -f "$local_path" ]]
     then
@@ -39,7 +32,7 @@ function util::get_script_content
     fi
 
     # If not found locally, try to fetch from GitHub
-    local github_url="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$path"
+    local github_url="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$relative_path"
     local content
     if content=$(curl -fsSL "$github_url")
     then
@@ -47,7 +40,7 @@ function util::get_script_content
         return 0
     fi
 
-    echo "Error: Failed to download script '$path'." >&2
+    echo "Error: Failed to download script '$relative_path'." >&2
     return 1
 }
 
