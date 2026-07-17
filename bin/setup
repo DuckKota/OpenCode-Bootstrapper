@@ -27,45 +27,25 @@ then
     exit 1
 fi
 
-# Resolve project root (one level up from /bin)
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
+# Phase 1: Resolve project root — clone to temp if running remotely
+SCRIPT_SRC="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." 2>/dev/null && pwd)" || true
 
-# Source the provided file
-# Source local file if it exists, otherwise fetch from GitHub
-function _source_file
-{
-    local file_path="$1"
-    local source_path
-
-    if [[ -f "$ROOT_DIR/$file_path" ]]
-    then
-        # Source local
-        source_path="$ROOT_DIR/$file_path"
-        source "$source_path"
-        return 0
-    else
-        # Source remote from GitHub
-        source_path="https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/$file_path"
-        
-        local _tmp_file
-        _tmp_file=$(mktemp)
-        if curl -fsSL "$source_path" -o "$_tmp_file"
-        then
-            source "$_tmp_file"
-            rm -f "$_tmp_file"
-            return 0
-        fi
-    fi
-
-    echo "Failed to source: $source_path" >&2
-    rm -f "$_tmp_file"
-    exit 1
-}
-
+CLEANUP_TMP=false
+if [[ -f "$SCRIPT_SRC/src/utils/_logger.sh" ]]
+then
+    ROOT_DIR="$SCRIPT_SRC"
+else
+    ROOT_DIR=$(mktemp -d)
+    git clone --depth 1 \
+        https://github.com/DuckKota/OpenCode-Bootstrapper.git \
+        "$ROOT_DIR"
+    CLEANUP_TMP=true
+    trap '[[ "$CLEANUP_TMP" == "true" ]] && rm -rf "$ROOT_DIR"' EXIT INT TERM
+fi
 
 # Load helpers
-_source_file "src/utils/_logger.sh"
-_source_file "src/utils/_utils.sh"
+source "$ROOT_DIR/src/utils/_logger.sh"
+source "$ROOT_DIR/src/utils/_utils.sh"
 
 function _ensure_git_project
 {
@@ -165,7 +145,7 @@ function _init_codebase_memory_mcp
     if [[ -f "$GIT_DIR/AGENTS.md" ]]
     then
         local codebase_mcp_agents_content
-        codebase_mcp_agents_content=$(util::get_script_content "src/instructions/codebase-memory-mcp-agents.md")
+        codebase_mcp_agents_content=$(cat "$ROOT_DIR/src/instructions/codebase-memory-mcp-agents.md")
 
         local agents_file="$GIT_DIR/AGENTS.md"
         touch "$agents_file"
@@ -180,7 +160,7 @@ function _init_codebase_memory_mcp
             mv "$tmp_file" "$agents_file"
         fi
     else
-        util::write_script_to_file "src/instructions/codebase-memory-mcp-agents.md" "$GIT_DIR/AGENTS.md" --overwrite
+        cp "$ROOT_DIR/src/instructions/codebase-memory-mcp-agents.md" "$GIT_DIR/AGENTS.md"
     fi
 
     # Update the projects MCP server list
@@ -257,7 +237,7 @@ function _write_command
         local command_current
         command_current=$(cat "$GIT_DIR/.opencode/commands/$command_name.md")
         local command_new
-        command_new=$(util::get_script_content "src/commands/$command_name.md")
+        command_new=$(cat "$ROOT_DIR/src/commands/$command_name.md")
         if [[ "$command_current" == "$command_new" ]]
         then
             log::success "/$command_name command already set up in $GIT_DIR/.opencode/commands/$command_name.md"
@@ -267,7 +247,8 @@ function _write_command
             log::newline
         fi
     else
-        util::write_script_to_file "src/commands/$command_name.md" "$GIT_DIR/.opencode/commands/$command_name.md" --overwrite
+        mkdir -p "$GIT_DIR/.opencode/commands"
+        cp "$ROOT_DIR/src/commands/$command_name.md" "$GIT_DIR/.opencode/commands/$command_name.md"
         log::success "/$command_name command written to .opencode/commands/$command_name.md"
         log::newline
     fi
@@ -284,9 +265,7 @@ function _write_skill
     local skill_name="$1"
     log::info "Writing $skill_name skill..."
 
-    local script_dir
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-    local src_dir="$script_dir/../src/skills/$skill_name"
+    local src_dir="$ROOT_DIR/src/skills/$skill_name"
     local skill_dir="$GIT_DIR/.opencode/skills/$skill_name"
 
     if [[ ! -d "$src_dir" ]]
@@ -302,7 +281,7 @@ function _write_skill
         while IFS= read -r -d '' file
         do
             rel_path="${file#$src_dir/}"
-            current=$(util::get_script_content "src/skills/$skill_name/$rel_path")
+            current=$(cat "$ROOT_DIR/src/skills/$skill_name/$rel_path")
             existing=$(cat "$skill_dir/$rel_path" 2>/dev/null)
             if [[ "$current" != "$existing" ]]
             then
@@ -322,14 +301,13 @@ function _write_skill
         return 0
     fi
 
-    local file rel_path
+    local file rel_path target_file
     while IFS= read -r -d '' file
     do
         rel_path="${file#$src_dir/}"
-        util::write_script_to_file \
-            "src/skills/$skill_name/$rel_path" \
-            "$skill_dir/$rel_path" \
-            --overwrite
+        target_file="$skill_dir/$rel_path"
+        mkdir -p "$(dirname "$target_file")"
+        cp "$ROOT_DIR/src/skills/$skill_name/$rel_path" "$target_file"
     done < <(find "$src_dir" -type f -print0)
 
     log::success "$skill_name skill written to .opencode/skills/$skill_name"
@@ -340,7 +318,7 @@ function _init_caveman_speak
 {
     log::info "Initializing caveman speak..."
     local caveman_content
-    caveman_content=$(util::get_script_content "src/instructions/caveman.md")
+    caveman_content=$(cat "$ROOT_DIR/src/instructions/caveman.md")
 
     local agents_file
     agents_file="$HOME/.config/opencode/AGENTS.md"
@@ -367,8 +345,8 @@ function _write_commit_message_command
     log::info "Writing commit-message command..."
     local repo_command="$GIT_DIR/.opencode/commands/commit-message.md"
     local repo_script="$GIT_DIR/.opencode/scripts/verify-commit"
-    local src_command="src/commands/commit-message.md"
-    local src_script="src/commands/verify-commit"
+    local src_command="$ROOT_DIR/src/commands/commit-message.md"
+    local src_script="$ROOT_DIR/src/commands/verify-commit"
 
     if [[ -f "$repo_command" ]] || [[ -f "$repo_script" ]]
     then
@@ -376,11 +354,11 @@ function _write_commit_message_command
         then
             local current_script new_script
             current_script=$(cat "$repo_script")
-            new_script=$(util::get_script_content "$src_script")
+            new_script=$(cat "$src_script")
 
             local current_command new_command
             current_command=$(cat "$repo_command")
-            new_command=$(util::get_script_content "$src_command" | sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g")
+            new_command=$(cat "$src_command" | sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g")
 
             if [[ "$current_command" == "$new_command" ]] && [[ "$current_script" == "$new_script" ]]
             then
@@ -393,8 +371,9 @@ function _write_commit_message_command
         log::warn "Skipping /commit-message command. Different version already exists in $repo_command"
         log::newline
     else
-        util::write_script_to_file "$src_command" "$repo_command" --overwrite
-        util::write_script_to_file "$src_script" "$repo_script" --overwrite
+        mkdir -p "$(dirname "$repo_command")" "$(dirname "$repo_script")"
+        cp "$src_command" "$repo_command"
+        cp "$src_script" "$repo_script"
         chmod 755 "$repo_script"
         sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g" "$repo_command" > "$repo_command.tmp" && mv "$repo_command.tmp" "$repo_command"
         log::success "/commit-message command written to $GIT_DIR/.opencode/commands/commit-message.md"
