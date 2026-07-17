@@ -1,29 +1,39 @@
 # OpenCode Bootstrapper
 
-One-command setup to supercharge a repository with [OpenCode](https://opencode.ai) tooling.
-
-## What It Installs
-
-- **`/commit-message`** — Staged diff analyzer enforcing 72-char Conventional Commits
-- **OpenSpec** — Spec framework compiling requirements into AI context manifests ([openspec.dev](https://openspec.dev/))
-- **CodeGraph** — Local SQLite knowledge graph indexing symbols and call paths ([https://colbymchenry.github.io/codegraph/](https://colbymchenry.github.io/codegraph/))
-- **rtk** — Rust CLI proxy filtering and compressing shell tokens by 60-90% ([https://www.rtk-ai.app/](https://www.rtk-ai.app/))
-- **Caveman** — Compressed AI response mode (edits `~/.config/opencode/AGENTS.md`)
+My one-command setup to supercharge a repository with [OpenCode](https://opencode.ai) tooling.
 
 ## Usage
+
+Ensure you have git, curl, and bash installed.
+
+Run from the Git repository you want to bootstrap:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/DuckKota/OpenCode-Bootstrapper/refs/heads/main/bin/setup | bash
 ```
 
-Run from the Git repository you want to bootstrap.
+## What It Installs
 
-## Prerequisites
+### Commands
 
-- Git, curl, bash 4.2+
-- [OpenSpec](https://openspec.dev/)
-- [CodeGraph](https://colbymchenry.github.io/codegraph/)
-- [rtk](https://www.rtk-ai.app/)
+- [x] **[`/commit-message`](./src/commands/commit-message.md)** - A command that analyzes the Git staged changes and writes a meaningful Conventional Commit.
+- [ ] **[`/mermaid`](./src/commands/mermaid.md)** - TODO
+- [x] **[`/grill-me`](./src/commands/grill-me.md)** - A command that interviews you relentlessly about a plan, decision, or idea. Walks down each branch of the decision tree one question at a time until you reach a shared understanding.
+- [x] **[`/handoff`](./src/commands/handoff.md)** - Compacts the current conversation into a handoff document so a fresh agent can pick up where you left off.
+
+### Tools
+
+- [x] **[OpenSpec](https://openspec.dev/)** - A spec-driven workflow framework that lives in your repository alongside code. Specs persist as living documentation.
+- [x] **[codebase-memory-mcp](https://deusdata.github.io/codebase-memory-mcp/)** - An MCP server that indexes your codebase into a persistent knowledge graph of functions, classes, call chains, and routes.
+- [x] **[rtk](https://www.rtk-ai.app/)** - Compresses command output before it reaches the AI context window.
+
+### Skills
+
+- [ ] **[caveman](./src/skills/caveman.md)** - A response style that strips all filler and keeps only technical substance.
+- [ ] **[diagnosing-bugs](./src/skills/diagnosing-bugs/)** - A structured 6-phase process for hard bugs and performance regressions.
+- [ ] **[codebase-design](./src/skills/codebase-design/)** - Shared vocabulary and principles for designing deep modules.
+- [ ] **[domain-modeling](./src/skills/domain-modeling/)** - Build and sharpen the project's domain model as you design:.
+- [ ] **[improve-codebase-architecture](./src/skills/improve-codebase-architecture/)** - Scans the codebase for deepening opportunities.
 
 ## Local Development
 
@@ -34,22 +44,6 @@ cd OpenCode-Bootstrapper
 ```
 
 The script sources files from the local checkout when available, falling back to GitHub raw content.
-
-## Project Structure
-
-```
-bin/
-  |-- setup              # Main bootstrap script
-src/
-  |-- utils/
-  |   |-- _logger.sh       # Colored, leveled logging (debug/info/success/warn/error)
-  |   |-- _utils.sh        # Shared helpers (git checks, file fetch, Python detection)
-  |-- markdown/
-      |-- caveman.md       # Caveman compression style guide
-      |-- commit-message.md # /commit-message command definition
-openspec/
-  |-- config.yaml        # OpenSpec project configuration
-```
 
 ## License
 

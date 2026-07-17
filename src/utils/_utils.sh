@@ -21,9 +21,16 @@ function util::command_exists
 # Fetch script content (local file preferred, fall back to GitHub)
 function util::get_script_content
 {
-    local relative_path="$1"
-    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local local_path="$script_dir/../../$relative_path"
+    local path="$1"
+
+    if [[ -f "$path" ]]
+    then
+        cat "$path"
+        return 0
+    fi
+
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+    local local_path="$script_dir/../../$path"
 
     if [[ -f "$local_path" ]]
     then
@@ -40,7 +47,7 @@ function util::get_script_content
         return 0
     fi
 
-    echo "Error: Failed to download script '$relative_path'." >&2
+    echo "Error: Failed to download script '$path'." >&2
     return 1
 }
 
@@ -81,4 +88,15 @@ function util::write_script_to_file
             exit 1
             ;;
     esac
+}
+
+function util::get_python_exe
+{
+    if command -v python3 >/dev/null 2>&1 && python3 -c "import json" 2>/dev/null
+    then
+        echo "python3"
+    elif command -v python >/dev/null 2>&1 && python -c "import json" 2>/dev/null
+    then
+        echo "python"
+    fi
 }

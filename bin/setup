@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
 
 # OpenCode Setup Script
-# This script bootstraps OpenCode tool for a repository.
-# 
-# curl -fSL "" | bash
-#
-# Installs:
-#  • /commit-message - Adds .opencode/commands/commit-message.md
-#  • OpenSpec - https://openspec.dev/
-#  • CodeGraph - https://github.com/colbymchenry/codegraph
-#  • rtk - https://github.com/rtk-ai/rtk
-#  • Caveman - Edits ~/.config/opencode/AGENTS.md
+# This script bootstraps OpenCode tool for a git repository.
 #
 # Requirements:
 #  • Git, curl, and a bash-compatible shell
@@ -89,6 +80,7 @@ function _ensure_git_project
     GIT_DIR=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
     GIT_DIR=$(cd "$GIT_DIR" && pwd -P)
     log::success "Git repository verified! ($GIT_DIR)"
+    log::newline
 }
 
 function _ensure_openspec_installed
@@ -97,23 +89,22 @@ function _ensure_openspec_installed
     if ! util::command_exists "openspec"
     then
         log::error "OpenSpec is not installed. Please install OpenSpec and try again."
-        log::error "  https://openspec.dev/"
         exit 1
     fi
     log::success "OpenSpec verified!"
+    log::newline
 }
 
-function _ensure_codegraph_installed
+function _ensure_codebase_memory_mcp_installed
 {
-    log::info "Ensuring CodeGraph is installed..."
-    log::warn "Coming soon..."
-    # if ! util::command_exists "codegraph"
-    # then
-    #     log::error "CodeGraph is not installed. Please install CodeGraph and try again."
-    #     log::error "  https://github.com/colbymchenry/codegraph"
-    #     exit 1
-    # fi
-    log::success "CodeGraph verified!"
+    log::info "Ensuring codebase-memory-mcp is installed..."
+    if ! util::command_exists "codebase-memory-mcp"
+    then
+        log::error "codebase-memory-mcp is not installed. Please install codebase-memory-mcp and try again."
+        exit 1
+    fi
+    log::success "codebase-memory-mcp verified!"
+    log::newline
 }
 
 function _ensure_rtk_installed
@@ -122,10 +113,10 @@ function _ensure_rtk_installed
     if ! util::command_exists "rtk"
     then
         log::error "rtk is not installed. Please install rtk and try again."
-        log::error "  https://github.com/rtk-ai/rtk"
         exit 1
     fi
     log::success "rtk verified!"
+    log::newline
 }
 
 function _update_gitignore
@@ -145,32 +136,102 @@ function _init_openspec
     then
         if [[ -d "$GIT_DIR/openspec/changes" ]] && [[ -d "$GIT_DIR/openspec/specs" ]] && [[ -f "$GIT_DIR/openspec/config.yaml" ]]
         then
-            log::success "OpenSpec already initialized! Nothing to do."
+            log::success "OpenSpec already initialized!"
+            log::newline
         else
             log::warn "Detected OpenSpec directory, but malformed directory structure."
-            log::warn "Manually delete OpenSpec directory and run again to initialize OpenSpec."
+            log::newline
         fi
     else
         openspec init --tools opencode
         log::success "OpenSpec initialized!"
+        log::newline
     fi
 }
 
-function _init_codegraph
+function _init_codebase_memory_mcp
 {
-    log::info "Initializing CodeGraph..."
-    log::warn "Coming soon..."
-    # codegraph install --target opencode --location local --yes
-    # codegraph init
-    # if [[ ! -f "$GIT_DIR/.gitignore" ]] || ! grep -qF ".codegraph/" "$GIT_DIR/.gitignore"
-    # then
-    #     echo "" >> "$GIT_DIR/.gitignore"
-    #     echo "# Ignore CodeGraph output" >> "$GIT_DIR/.gitignore"
-    #     echo ".codegraph/" >> "$GIT_DIR/.gitignore"
-    # fi
-    log::success "CodeGraph initialized!"
-    # TODO: Should we create an OpenCode plugin that blocks grep calls until CodeGraph is used..?
-    # We did this for the Graphify + CRG setup I wrote, and rtk has one too.
+    log::info "Initializing codebase-memory-mcp..."
+
+    # Ensure we found the codebase-memory-mcp executable
+    local codebase_mcp_install_path="$(which codebase-memory-mcp)"
+    if [[ -z "$codebase_mcp_install_path" ]]
+    then
+        log::error "command not found: codebase-memory-mcp"
+        return 1
+    fi
+
+    # Update the projects AGENTS.md file
+    if [[ -f "$GIT_DIR/AGENTS.md" ]]
+    then
+        local codebase_mcp_agents_content
+        codebase_mcp_agents_content=$(util::get_script_content "src/instructions/codebase-memory-mcp-agents.md")
+
+        local agents_file="$GIT_DIR/AGENTS.md"
+        touch "$agents_file"
+
+        if ! grep -qF "$(echo "$codebase_mcp_agents_content" | head -n1)" "$agents_file"
+        then
+            local tmp_file
+            tmp_file=$(mktemp)
+            echo "$codebase_mcp_agents_content" > "$tmp_file"
+            echo "" >> "$tmp_file"
+            cat "$agents_file" >> "$tmp_file"
+            mv "$tmp_file" "$agents_file"
+        fi
+    else
+        util::write_script_to_file "src/instructions/codebase-memory-mcp-agents.md" "$GIT_DIR/AGENTS.md" --overwrite
+    fi
+
+    # Update the projects MCP server list
+    mkdir -p "$GIT_DIR/.opencode"
+    local python_exe
+    python_exe="$(util::get_python_exe)"
+    if [[ -z "$python_exe" ]]
+    then
+        log::error "command not found: python3 / python"
+        return 1
+    fi
+    (cd "$GIT_DIR" && "$python_exe" -c "import json, os
+
+file_path = '.opencode/opencode.json'
+
+if not os.path.exists(file_path):
+    with open(file_path, 'w') as f:
+        f.write('{}')
+
+try:
+    with open(file_path, 'r+') as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            data = {}
+
+        payload = {
+            'codebase-memory-mcp': {
+                'enabled': True,
+                'type': 'local',
+                'command': '$codebase_mcp_install_path',
+            }
+        }
+
+        if 'mcp' not in data:
+            data['mcp'] = payload
+        else:
+            if 'codebase-memory-mcp' not in data['mcp']:
+                data['mcp']['codebase-memory-mcp'] = payload['codebase-memory-mcp']
+            else:
+                pass
+
+        f.seek(0)
+        json.dump(data, f, indent=4)
+        f.truncate()
+except Exception as e:
+    print(f'Error updating file: {e}')
+")
+
+    log::success "codebase-memory-mcp initialized!"
+    log::newline
 }
 
 function _init_rtk
@@ -178,115 +239,198 @@ function _init_rtk
     log::info "Initializing rtk..."
     echo "n" | rtk init --global --opencode
     log::success "rtk initialized!"
+    log::newline
+}
+
+function _write_command
+{
+    if (( $# < 1 ))
+    then
+        echo "Error: Missing argument." >&2
+        exit 1
+    fi
+
+    local command_name="$1"
+    log::info "Writing $command_name command..."
+    if [[ -f "$GIT_DIR/.opencode/commands/$command_name.md" ]]
+    then
+        local command_current
+        command_current=$(util::get_script_content "$GIT_DIR/.opencode/commands/$command_name.md")
+        local command_new
+        command_new=$(util::get_script_content "src/commands/$command_name.md")
+        if [[ "$command_current" == "$command_new" ]]
+        then
+            log::success "/$command_name command already set up in $GIT_DIR/.opencode/commands/$command_name.md"
+            log::newline
+        else
+            log::warn "Skipping /$command_name command. Different skill by the same name already exists: $GIT_DIR/.opencode/commands/$command_name.md"
+            log::newline
+        fi
+    else
+        util::write_script_to_file "src/commands/$command_name.md" "$GIT_DIR/.opencode/commands/$command_name.md" --overwrite
+        log::success "/$command_name command written to .opencode/commands/$command_name.md"
+        log::newline
+    fi
+}
+
+function _write_skill
+{
+    if (( $# < 1 ))
+    then
+        echo "Error: Missing argument." >&2
+        exit 1
+    fi
+
+    local skill_name="$1"
+    log::info "Writing $skill_name skill..."
+
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+    local src_dir="$script_dir/../src/skills/$skill_name"
+    local skill_dir="$GIT_DIR/.opencode/skills/$skill_name"
+
+    if [[ ! -d "$src_dir" ]]
+    then
+        log::error "Skill source not found: $src_dir"
+        exit 1
+    fi
+
+    if [[ -d "$skill_dir" ]]
+    then
+        local any_diff=0
+        local file rel_path current existing
+        while IFS= read -r -d '' file
+        do
+            rel_path="${file#$src_dir/}"
+            current=$(util::get_script_content "src/skills/$skill_name/$rel_path")
+            existing=$(cat "$skill_dir/$rel_path" 2>/dev/null)
+            if [[ "$current" != "$existing" ]]
+            then
+                any_diff=1
+                break
+            fi
+        done < <(find "$src_dir" -type f -print0)
+
+        if (( any_diff == 0 ))
+        then
+            log::success "$skill_name skill already set up in $skill_dir"
+            log::newline
+        else
+            log::warn "Skipping $skill_name skill. Different version already exists: $skill_dir"
+            log::newline
+        fi
+        return 0
+    fi
+
+    local file rel_path
+    while IFS= read -r -d '' file
+    do
+        rel_path="${file#$src_dir/}"
+        util::write_script_to_file \
+            "src/skills/$skill_name/$rel_path" \
+            "$skill_dir/$rel_path" \
+            --overwrite
+    done < <(find "$src_dir" -type f -print0)
+
+    log::success "$skill_name skill written to .opencode/skills/$skill_name"
+    log::newline
 }
 
 function _init_caveman_speak
 {
     log::info "Initializing caveman speak..."
-    caveman_content=$(util::get_script_content "src/markdown/caveman.md")
+    local caveman_content
+    caveman_content=$(util::get_script_content "src/instructions/caveman.md")
 
+    local agents_file
     agents_file="$HOME/.config/opencode/AGENTS.md"
     mkdir -p "$(dirname "$agents_file")"
     touch "$agents_file"
     if grep -qF "$caveman_content" "$agents_file"
     then
-        log::warn "Skipping Caveman direction. Content already exists: $agents_file"
+        log::success "Caveman direction already exists in $agents_file"
+        log::newline
     else
+        local tmp_file
         tmp_file=$(mktemp)
         echo "$caveman_content" > "$tmp_file"
         echo "" >> "$tmp_file"
         cat "$agents_file" >> "$tmp_file"
         mv "$tmp_file" "$agents_file"
         log::success "Caveman speak initialized!"
+        log::newline
     fi
 }
 
 function _write_commit_message_command
 {
     log::info "Writing commit-message command..."
-    local repo_commit_message_command="$GIT_DIR/.opencode/commands/commit-message.md"
-    local repo_commit_message_script="$GIT_DIR/.opencode/scripts/verify-commit"
-    if [[ -f "$repo_commit_message_command" ]] || [[ -f "$repo_commit_message_script" ]]
+    local repo_command="$GIT_DIR/.opencode/commands/commit-message.md"
+    local repo_script="$GIT_DIR/.opencode/scripts/verify-commit"
+    local src_command="src/commands/commit-message.md"
+    local src_script="src/commands/verify-commit"
+
+    if [[ -f "$repo_command" ]] || [[ -f "$repo_script" ]]
     then
-        log::warn "Skipping /commit-message command. File already exists: $repo_commit_message_command"
-        log::warn "Manually delete file and run again to get latest commit-message.md"
+        if [[ -f "$repo_command" ]] && [[ -f "$repo_script" ]]
+        then
+            local current_script new_script
+            current_script=$(util::get_script_content "$repo_script")
+            new_script=$(util::get_script_content "$src_script")
+
+            local current_command new_command
+            current_command=$(util::get_script_content "$repo_command")
+            new_command=$(util::get_script_content "$src_command" | sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g")
+
+            if [[ "$current_command" == "$new_command" ]] && [[ "$current_script" == "$new_script" ]]
+            then
+                log::success "/commit-message command already set up in $repo_command"
+                log::newline
+                return 0
+            fi
+        fi
+
+        log::warn "Skipping /commit-message command. Different version already exists in $repo_command"
+        log::newline
     else
-        util::write_script_to_file "src/markdown/commit-message.md" "$repo_commit_message_command" --overwrite
-        util::write_script_to_file "src/scripts/verify-commit" "$repo_commit_message_script" --overwrite
-        chmod 755 "$repo_commit_message_script"
-        sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_commit_message_script|g" $repo_commit_message_command > $repo_commit_message_command.tmp && mv $repo_commit_message_command.tmp $repo_commit_message_command
-        log::success "commit-message command written to .opencode/commands/commit-message.md"
+        util::write_script_to_file "$src_command" "$repo_command" --overwrite
+        util::write_script_to_file "$src_script" "$repo_script" --overwrite
+        chmod 755 "$repo_script"
+        sed "s|<VALIDATE_COMMIT_SCRIPT>|$repo_script|g" "$repo_command" > "$repo_command.tmp" && mv "$repo_command.tmp" "$repo_command"
+        log::success "/commit-message command written to $GIT_DIR/.opencode/commands/commit-message.md"
+        log::newline
     fi
 }
 
-function _write_grillme_command
-{
-    log::info "Writing grill-me command..."
-    if [[ -f "$GIT_DIR/.opencode/commands/grill-me.md" ]]
-    then
-        log::warn "Skipping /grill-me command. File already exists: $GIT_DIR/.opencode/commands/grill-me.md"
-        log::warn "Manually delete file and run again to get latest grill-me.md"
-    else
-        util::write_script_to_file "src/markdown/grill-me.md" "$GIT_DIR/.opencode/commands/grill-me.md" --overwrite
-        log::success "grill-me command written to .opencode/commands/grill-me.md"
-    fi
-}
-
-function _write_handoff_command
-{
-    echo "TODO"
-}
-
-function _write_debugging_skill
-{
-    echo "TODO"
-}
 
 # ----------------------------------
 
+log::box "System Pre-checks"
 _ensure_git_project
 _ensure_openspec_installed
-_ensure_codegraph_installed
+_ensure_codebase_memory_mcp_installed
 _ensure_rtk_installed
 
+log::box "Initializing Tools"
 _update_gitignore
 _init_openspec
-_init_codegraph
+_init_codebase_memory_mcp
 _init_rtk
-_init_caveman_speak
+
+log::box "Installing Commands"
 _write_commit_message_command
-_write_grillme_command
-_write_handoff_command
-_write_debugging_skill
+_write_command "grill-me"
+_write_command "handoff"
+
+log::box "Installing Skills"
+_write_skill "diagnosing-bugs"
+_write_skill "codebase-design"
+_write_skill "domain-modeling"
+_write_skill "improve-codebase-architecture"
+_write_skill "grilling"
+
+log::box "Installing Miscellaneous"
+_init_caveman_speak
 
 echo
-log::box "✓ OpenCode Setup Complete!" \
-  "" \
-  "What was installed in the repository:" \
-  "    --- COMMANDS ---" \
-  "    • /commit-message - Staged diff analyzer enforcing Conventional Commits" \
-  "      Adds .opencode/commands/commit-message.md" \
-  "" \
-  "    • /grill-me - TODO" \
-  "      Adds .opencode/commands/grill-me.md" \
-  "" \
-  "    • /handoff - TODO" \
-  "      Adds .opencode/commands/handoff.md" \
-  "" \
-  "    --- TOOLS ---" \
-  "    • OpenSpec - Spec framework compiling requirements into context manifests" \
-  "      https://openspec.dev/" \
-  "" \
-  "    • CodeGraph - Local SQLite knowledge graph indexing symbols and call paths" \
-  "      https://github.com/colbymchenry/codegraph" \
-  "" \
-  "    • rtk - Rust CLI proxy filtering and compressing shell tokens by 60-90%" \
-  "      https://github.com/rtk-ai/rtk" \
-  "" \
-  "    --- SKILLS ---" \
-  "    • Caveman - Strip filler words to cut output tokens" \
-  "      Edits ~/.config/opencode/AGENTS.md" \
-  "" \
-  "    • diagnosing-bugs - Diagnosis loop for hard bugs and performance regressions" \
-  "      Adds .opencode/skills/diagnosing-bugs/SKILL.md" \
-  ""
+log::box "  •  OpenCode Setup Complete  •  "
